@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>中国职业AI暴露度可视化</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0a0a0f;
+  --bg2: #12121a;
+  --fg: #e0e0e8;
+  --fg2: #888894;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+}
+
+#wrapper {
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  padding-bottom: 100px;
+}
+
+#header {
+  padding: 20px 28px 16px;
+  flex-shrink: 0;
+}
+
+.intro {
+  margin-bottom: 18px;
+}
+.intro h1 {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.intro h1 a {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--fg2);
+  text-decoration: none;
+}
+.intro h1 a:hover { text-decoration: underline; }
+.intro p {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--fg2);
+  margin-bottom: 8px;
+}
+.intro a { color: var(--fg2); }
+.intro strong, .intro b { color: var(--fg); font-weight: 600; }
+
+.stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 28px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.stat-section {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.stat-section h3 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg2);
+}
+.stat-big {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.stat-label {
+  font-size: 11px;
+  color: var(--fg2);
+}
+
+.tier-bar { display: flex; flex-direction: column; gap: 3px; }
+.tier-row { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.tier-color { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.tier-name { flex: 1; color: var(--fg2); white-space: nowrap; }
+.tier-count { text-align: right; white-space: nowrap; }
+.tier-pct { text-align: right; width: 30px; color: var(--fg2); font-size: 11px; }
+
+.histogram { display: flex; align-items: flex-end; gap: 2px; height: 54px; }
+.histogram .bar { flex: 1; border-radius: 1px 1px 0 0; min-height: 1px; }
+.hist-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--fg2); margin-top: 2px; }
+
+.controls-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.gradient-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--fg2);
+}
+.gradient-legend canvas { border-radius: 2px; }
+
+canvas#canvas {
+  display: block;
+  cursor: default;
+}
+
+#tooltip {
+  position: fixed;
+  pointer-events: none;
+  background: var(--bg2);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 340px;
+  opacity: 0;
+  transition: opacity 0.12s;
+  z-index: 20;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+}
+#tooltip.visible { opacity: 1; }
+#tooltip .tt-title { font-weight: 600; font-size: 14px; margin-bottom: 6px; color: #fff; }
+#tooltip .tt-exposure { font-size: 12px; margin-bottom: 8px; }
+#tooltip .tt-stats { display: grid; grid-template-columns: auto auto; gap: 2px 12px; font-size: 12px; }
+#tooltip .tt-stats .label { color: var(--fg2); }
+#tooltip .tt-stats .value { color: var(--fg); text-align: right; }
+#tooltip .tt-rationale { font-size: 11px; color: rgba(224,224,232,0.88); margin-top: 8px; line-height: 1.4; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px; }
+#tooltip .tt-jobs { font-size: 11px; color: rgba(224,224,232,0.82); margin-top: 8px; line-height: 1.45; }
+
+.category-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.category-filter button {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg2);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.category-filter button.active {
+  background: rgba(255,255,255,0.08);
+  color: var(--fg);
+  border-color: rgba(255,255,255,0.2);
+}
+.category-filter button:hover:not(.active) {
+  background: rgba(255,255,255,0.04);
+}
+</style>
+</head>
+<body>
+
+<div id="wrapper">
+<div id="header">
+  <div class="intro">
+    <h1>中国职业AI暴露度可视化</h1>
+    <p>本工具按《中华人民共和国职业分类大典（2022年版）》的<b>小类</b>维度展示AI暴露度。每个矩形代表一个小类，颜色表示该小类下职业AI暴露度的平均值（0-10分）。深绿色表示低暴露（如体力劳动），深红色表示高暴露（如数字化工作）。</p>
+    <p><b>AI暴露度说明：</b>分数衡量AI将在多大程度上重塑该职业。高分不代表工作会消失，而是指AI正在改变工作方式。软件开发者评分9/10，因为AI正在改变编程工作，但软件需求可能反而增长。</p>
+  </div>
+
+  <div class="controls-row">
+    <div class="gradient-legend">
+      <span>低暴露 (0)</span>
+      <canvas id="gradientLegend" width="80" height="8"></canvas>
+      <span>高暴露 (10)</span>
+    </div>
+  </div>
+
+  <div class="category-filter" id="categoryFilter">
+      <button data-cat="all" class="active">全部小类</button>
+    <button data-cat="1">第一大类</button>
+    <button data-cat="2">第二大类</button>
+    <button data-cat="3">第三大类</button>
+    <button data-cat="4">第四大类</button>
+    <button data-cat="5">第五大类</button>
+    <button data-cat="6">第六大类</button>
+    <button data-cat="7">第七大类</button>
+    <button data-cat="8">第八大类</button>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-section">
+      <h3>小类总数</h3>
+      <div class="stat-big" id="statTotal">&mdash;</div>
+    </div>
+    <div class="stat-section">
+      <h3>平均暴露度</h3>
+      <div class="stat-big" id="statAvg">&mdash;</div>
+    </div>
+    <div class="stat-section" id="block1"></div>
+    <div class="stat-section" id="block2"></div>
+    <div class="stat-section" id="block3"></div>
+  </div>
+</div>
+
+<canvas id="canvas"></canvas>
+</div>
+
+<div id="tooltip">
+  <div class="tt-title"></div>
+  <div class="tt-exposure"></div>
+  <div class="tt-stats"></div>
+  <div class="tt-jobs"></div>
+  <div class="tt-rationale"></div>
+</div>
+
+<script>
+
+// ── Color scales ────────────────────────────────────────────────────────
+
+function boostContrast(t) {
+  const c = (t - 0.5) * 2;
+  const b = Math.sign(c) * Math.pow(Math.abs(c), 0.55);
+  return b / 2 + 0.5;
+}
+
+function greenRedCSS(t, alpha) {
+  t = boostContrast(Math.max(0, Math.min(1, t)));
+  let r, g, b;
+  if (t < 0.5) {
+    const s = t / 0.5;
+    r = Math.round(30 + s * 200);
+    g = Math.round(180 - s * 20);
+    b = Math.round(40 - s * 20);
+  } else {
+    const s = (t - 0.5) / 0.5;
+    r = Math.round(230 + s * 25);
+    g = Math.round(160 - s * 130);
+    b = Math.round(20 - s * 5);
+  }
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function exposureColor(v, a) {
+  if (v == null) return `rgba(128,128,128,${a})`;
+  return greenRedCSS(v / 10, a);
+}
+
+// ── Category names ────────────────────────────────────────────────────────
+
+const CATEGORY_NAMES = {
+  "1": "党的机关、国家机关负责人",
+  "2": "专业技术人员",
+  "3": "办事人员和有关人员",
+  "4": "社会生产服务和生活服务人员",
+  "5": "农、林、牧、渔业生产人员",
+  "6": "生产制造及有关人员",
+  "7": "军队人员",
+  "8": "不便分类的其他从业人员"
+};
+
+// ── Squarified treemap layout ──────────────────────────────────────────
+
+function squarify(items, x, y, w, h) {
+  if (items.length === 0) return [];
+  if (items.length === 1) return [{ ...items[0], rx: x, ry: y, rw: w, rh: h }];
+  const total = items.reduce((s, d) => s + d.value, 0);
+  if (total === 0) return [];
+  const results = [];
+  let remaining = [...items], cx = x, cy = y, cw = w, ch = h;
+  while (remaining.length > 0) {
+    const remTotal = remaining.reduce((s, d) => s + d.value, 0);
+    const vertical = cw >= ch;
+    const side = vertical ? ch : cw;
+    let row = [remaining[0]], rowSum = remaining[0].value;
+    for (let i = 1; i < remaining.length; i++) {
+      const candidate = [...row, remaining[i]];
+      const candidateSum = rowSum + remaining[i].value;
+      if (worstAspect(candidate, candidateSum, side, remTotal, vertical ? cw : ch) <
+          worstAspect(row, rowSum, side, remTotal, vertical ? cw : ch)) {
+        row = candidate; rowSum = candidateSum;
+      } else break;
+    }
+    const rowFraction = rowSum / remTotal;
+    const rowThickness = vertical ? cw * rowFraction : ch * rowFraction;
+    let offset = 0;
+    for (const item of row) {
+      const itemFraction = item.value / rowSum;
+      const itemLength = side * itemFraction;
+      if (vertical) results.push({ ...item, rx: cx, ry: cy + offset, rw: rowThickness, rh: itemLength });
+      else results.push({ ...item, rx: cx + offset, ry: cy, rw: itemLength, rh: rowThickness });
+      offset += itemLength;
+    }
+    if (vertical) { cx += rowThickness; cw -= rowThickness; }
+    else { cy += rowThickness; ch -= rowThickness; }
+    remaining = remaining.slice(row.length);
+  }
+  return results;
+}
+
+function worstAspect(row, rowSum, side, totalArea, availableExtent) {
+  const rowExtent = availableExtent * (rowSum / totalArea);
+  if (rowExtent === 0) return Infinity;
+  let worst = 0;
+  for (const item of row) {
+    const itemLen = side * (item.value / rowSum);
+    if (itemLen === 0) continue;
+    const aspect = Math.max(rowExtent / itemLen, itemLen / rowExtent);
+    if (aspect > worst) worst = aspect;
+  }
+  return worst;
+}
+
+// ── Rendering ──────────────────────────────────────────────────────────
+
+let allData = [];
+let data = [];
+let rects = [];
+let hovered = null;
+let currentCategory = 'all';
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+let dpr = window.devicePixelRatio || 1;
+const MARGIN = 12, GAP = 1.5;
+
+function layout() {
+  const wrapper = document.getElementById("wrapper");
+  const headerH = document.getElementById("header").offsetHeight;
+  const w = wrapper.clientWidth;
+  const h = Math.round(w * 3 / 4);
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + "px"; canvas.style.height = h + "px";
+  const tx = MARGIN, ty = MARGIN, tw = w - MARGIN * 2, th = h - MARGIN * 2;
+  
+  // Group by category
+  const byCategory = {};
+  for (const d of data) { 
+    const cat = d.category_l1_code || '0';
+    if (!byCategory[cat]) byCategory[cat] = []; 
+    byCategory[cat].push(d); 
+  }
+  
+  const categories = Object.keys(byCategory).map(cat => ({
+    cat, 
+    items: byCategory[cat].sort((a, b) => (b.exposure || 0) - (a.exposure || 0)),
+    value: byCategory[cat].length,
+  })).sort((a, b) => b.value - a.value);
+  
+  const catRects = squarify(categories, tx, ty, tw, th);
+  rects = [];
+  for (const cr of catRects) {
+    const items = cr.items.map(d => ({ ...d, value: Math.max(1, d.occupation_count || 1) }));
+    const innerRects = squarify(items, cr.rx + GAP, cr.ry + GAP, cr.rw - GAP * 2, cr.rh - GAP * 2);
+    for (const ir of innerRects) rects.push(ir);
+  }
+}
+
+function draw() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = "#0a0a0f";
+  ctx.fillRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+  for (const r of rects) {
+    const isHovered = r === hovered;
+    const g = GAP / 2, rx = r.rx + g, ry = r.ry + g, rw = r.rw - g * 2, rh = r.rh - g * 2;
+    if (rw <= 0 || rh <= 0) continue;
+    ctx.fillStyle = exposureColor(r.exposure, isHovered ? 0.8 : 0.5);
+    ctx.fillRect(rx, ry, rw, rh);
+    if (isHovered) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.strokeRect(rx, ry, rw, rh); }
+    if (rw > 40 && rh > 16) {
+      ctx.save(); ctx.beginPath(); ctx.rect(rx + 4, ry + 2, rw - 8, rh - 4); ctx.clip();
+      const fontSize = Math.min(12, Math.max(8, Math.min(rw / 8, rh / 3)));
+      ctx.font = `500 ${fontSize}px -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif`;
+      ctx.fillStyle = isHovered ? "#fff" : "rgba(255,255,255,0.85)";
+      ctx.textBaseline = "top";
+      ctx.fillText(r.title, rx + 4, ry + 3);
+      ctx.restore();
+    }
+  }
+}
+
+function hitTest(mx, my) {
+  const rect = canvas.getBoundingClientRect();
+  const cx = mx - rect.left, cy = my - rect.top;
+  for (let i = rects.length - 1; i >= 0; i--) {
+    const r = rects[i];
+    if (cx >= r.rx && cx < r.rx + r.rw && cy >= r.ry && cy < r.ry + r.rh) return r;
+  }
+  return null;
+}
+
+function showTooltip(d, mx, my) {
+  const tt = document.getElementById("tooltip");
+  tt.querySelector(".tt-title").textContent = d.title;
+  
+  const v = d.exposure;
+  const color = exposureColor(v, 1);
+  tt.querySelector(".tt-exposure").innerHTML = 
+    `<span style="color:${color};font-weight:600;">平均AI暴露度: ${v != null ? v.toFixed(1) + '/10' : '未评分'}</span>` +
+    (v != null ? `<div style="margin-top:3px;height:4px;background:rgba(255,255,255,0.08);border-radius:2px;">` +
+    `<div style="height:100%;width:${v * 10}%;background:${color};border-radius:2px;"></div></div>` : '');
+  
+  tt.querySelector(".tt-stats").innerHTML = `
+    <span class="label">小类编码</span><span class="value">${d.code || '—'}</span>
+    <span class="label">大类</span><span class="value">${d.category_l1 || '—'}</span>
+    <span class="label">中类</span><span class="value">${d.category_l2 || '—'}</span>
+    <span class="label">职业数</span><span class="value">${d.occupation_count || 0}</span>`;
+
+  const jobTitles = Array.isArray(d.occupation_titles) ? d.occupation_titles : [];
+  tt.querySelector(".tt-jobs").textContent = jobTitles.length > 0
+    ? `职业名称：${jobTitles.join('、')}`
+    : '';
+
+  const extraParts = [];
+  if (d.definition) extraParts.push(`定义：${d.definition}`);
+  if (d.exposure_rationale) extraParts.push(`解释：${d.exposure_rationale}`);
+  tt.querySelector(".tt-rationale").textContent = extraParts.join(" ");
+  
+  let tx = mx + 16, ty = my - 16;
+  if (tx + 340 > window.innerWidth) tx = mx - 356;
+  if (ty < 10) ty = my + 16;
+  if (ty + 200 > window.innerHeight) ty = my - 200;
+  tt.style.left = tx + "px"; tt.style.top = ty + "px";
+  tt.classList.add("visible");
+}
+
+function hideTooltip() { document.getElementById("tooltip").classList.remove("visible"); }
+
+// ── Stats ─────────────────────────────────────────────────────────────
+
+function updateStats() {
+  const total = data.length;
+  const scored = data.filter(d => d.exposure != null);
+  const avg = scored.length > 0 ? scored.reduce((s, d) => s + d.exposure, 0) / scored.length : 0;
+  
+  document.getElementById("statTotal").textContent = total.toLocaleString();
+  document.getElementById("statAvg").innerHTML = `<span style="color:${exposureColor(avg, 1)}">${avg.toFixed(1)}</span>`;
+  
+  // Histogram
+  const histogram = new Array(11).fill(0);
+  for (const d of scored) {
+    const bucket = Math.max(0, Math.min(10, Math.round(d.exposure)));
+    histogram[bucket]++;
+  }
+  const maxH = Math.max(...histogram);
+  document.getElementById("block1").innerHTML = `<h3>分布直方图</h3>
+    <div class="histogram">${histogram.map((c, i) => `<div class="bar" style="height:${Math.max(2, maxH > 0 ? c / maxH * 100 : 0)}%;background:${exposureColor(i, 0.7)}"></div>`).join("")}</div>
+    <div class="hist-labels"><span>0</span><span>5</span><span>10</span></div>`;
+  
+  // Tiers
+  const tierDefs = [
+    { label: "极低 (0-1)", lo: 0, hi: 1, mid: 0.5 },
+    { label: "低 (2-3)", lo: 2, hi: 3, mid: 2.5 },
+    { label: "中等 (4-5)", lo: 4, hi: 5, mid: 4.5 },
+    { label: "高 (6-7)", lo: 6, hi: 7, mid: 6.5 },
+    { label: "极高 (8-10)", lo: 8, hi: 10, mid: 9 },
+  ];
+  const tiers = tierDefs.map(t => {
+    const count = scored.filter(d => d.exposure >= t.lo && d.exposure <= t.hi).length;
+    return { ...t, count, color: exposureColor(t.mid, 1) };
+  });
+  document.getElementById("block2").innerHTML = `<h3>暴露等级</h3><div class="tier-bar">${tiers.map(t => 
+    `<div class="tier-row"><div class="tier-color" style="background:${t.color}"></div>` +
+    `<span class="tier-name">${t.label}</span><span class="tier-count">${t.count}</span>` +
+    `<span class="tier-pct">${total > 0 ? (t.count / total * 100).toFixed(0) : 0}%</span></div>`
+  ).join("")}</div>`;
+  
+  document.getElementById("block3").innerHTML = `<h3>已评分小类</h3>
+    <div class="stat-big">${scored.length}/${total}</div>`;
+}
+
+// ── Events ─────────────────────────────────────────────────────────────
+
+canvas.addEventListener("mousemove", (e) => {
+  const hit = hitTest(e.clientX, e.clientY);
+  if (hit !== hovered) { hovered = hit; draw(); }
+  if (hovered) { showTooltip(hovered, e.clientX, e.clientY); canvas.style.cursor = "pointer"; }
+  else { hideTooltip(); canvas.style.cursor = "default"; }
+});
+
+canvas.addEventListener("mouseleave", () => { hovered = null; hideTooltip(); draw(); });
+
+function resize() { dpr = window.devicePixelRatio || 1; layout(); draw(); }
+
+// Category filter
+document.getElementById("categoryFilter").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn || !btn.dataset.cat) return;
+  
+  currentCategory = btn.dataset.cat;
+  document.querySelectorAll("#categoryFilter button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  
+  if (currentCategory === 'all') {
+    data = [...allData];
+  } else {
+    data = allData.filter(d => {
+      return (d.category_l1_code || '0') === currentCategory;
+    });
+  }
+  
+  updateStats();
+  resize();
+});
+
+// Legend gradient
+function drawGradientLegend() {
+  const c = document.getElementById("gradientLegend");
+  const gctx = c.getContext("2d");
+  for (let x = 0; x < 80; x++) {
+    const t = x / 79;
+    gctx.fillStyle = greenRedCSS(t, 1);
+    gctx.fillRect(x, 0, 1, 8);
+  }
+}
+
+// ── Load ───────────────────────────────────────────────────────────────
+
+fetch("data.json")
+  .then(r => r.json())
+  .then(d => {
+    allData = d;
+    data = [...allData];
+    updateStats();
+    drawGradientLegend();
+    resize();
+  });
+
+window.addEventListener("resize", resize);
+</script>
+</body>
+</html>
